@@ -1,84 +1,106 @@
 #!/bin/bash -l
+
+# active bash options:
+#   - stops the execution of the shell script whenever there are any errors from a command or pipeline (-e)
+#   - option to treat unset variables as an error and exit immediately (-u)
+#   - print each command before executing it (-x)
+#   - sets the exit code of a pipeline to that of the rightmost command
+#     to exit with a non-zero status, or to zero if all commands of the
+#     pipeline exit successfully (-o pipefail)
 set -euo pipefail
 
 main() {
-  local prev_version="$1"
-  local release_type="$2"
+  prev_version="$1"; release_type="$2"
 
   if [[ -z "$prev_version" ]]; then
     echo "could not read previous version"; exit 1
   fi
 
-  local possible_release_types=(
-    major minor patch stable
-    feature bug hotfix
+  possible_release_types=(
+    major feature minor bug patch hotfix stable
     alpha beta pre rc
     patch-alpha patch-beta patch-pre patch-rc
     minor-alpha minor-beta minor-pre minor-rc
     major-alpha major-beta major-pre major-rc
   )
 
-  [[ " ${possible_release_types[*]} " =~ " ${release_type} " ]] || {
-    echo "valid argument: [ ${possible_release_types[*]} ]"; exit 1;
-  }
+  if [[ ! " ${possible_release_types[*]} " =~ " ${release_type} " ]]; then
+    echo "valid argument: [ ${possible_release_types[*]} ]"; exit 1
+  fi
 
-  # Synonyme normalisieren
-  case "$release_type" in
-    feature) release_type="minor" ;;
-    bug|hotfix) release_type="patch" ;;
-  esac
+  [[ "$release_type" == "feature" ]] && release_type="minor"
+  [[ "$release_type" == "bug" || "$release_type" == "hotfix" ]] && release_type="patch"
 
-  # Versionsbestandteile vorbereiten
-  local major=0 minor=0 patch=0 pre="" preversion=""
-  local version_changed=false
+  major=0; minor=0; patch=0; pre=""; preversion=""
+  version_changed=false
 
-  local regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\\.([0-9]+))?)?$"
-  if [[ "$prev_version" =~ $regex ]]; then
+  # break down the version number into its components
+  regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\\.([0-9]+))?)?$"
+  if [[ $prev_version =~ $regex ]]; then
     major="${BASH_REMATCH[1]}"
     minor="${BASH_REMATCH[2]}"
     patch="${BASH_REMATCH[3]}"
-    pre="${BASH_REMATCH[4]:-}"
-    preversion="${BASH_REMATCH[5]:-}"
+    pre="${BASH_REMATCH[5]}"
+    preversion="${BASH_REMATCH[7]}"
   else
     echo "previous version '$prev_version' is not a semantic version"
     exit 1
   fi
 
-  # Typ aufsplitten (z. B. patch-alpha → bump=patch, pre_type=alpha)
-  local bump_type="${release_type%%-*}"
-  local pre_type="${release_type#*-}"
+  # increment version number based on given release type
+  case "$release_type" in
+    major)
+      ((++major)); minor=0; patch=0; pre=""; version_changed=true;;
+    minor)
+      ((++minor)); patch=0; pre=""; version_changed=true;;
+    patch)
+      ((++patch)); pre=""; version_changed=true;;
+    stable)
+      pre=""; preversion="";;
+    
+    patch-* | minor-* | major-*)
+      IFS='-' read -r bump pre_type <<< "$release_type"
+      case "$bump" in
+        patch) ((++patch)) ;;
+        minor) ((++minor)); patch=0 ;;
+        major) ((++major)); minor=0; patch=0 ;;
+      esac
+      version_changed=true
 
-  # Hauptversion anpassen
-  case "$bump_type" in
-    major) ((++major)); minor=0; patch=0; version_changed=true ;;
-    minor) ((++minor)); patch=0; version_changed=true ;;
-    patch) ((++patch)); version_changed=true ;;
-    stable) pre=""; preversion="" ;;
+      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
+        preversion=0
+      else
+        ((++preversion))
+      fi
+
+      if [[ "$preversion" == "0" ]]; then
+        pre="-$pre_type"
+      else
+        pre="-$pre_type.$preversion"
+      fi
+      ;;
+    
+    alpha | beta | pre | rc)
+      pre_type="$release_type"
+
+      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
+        preversion=0
+      else
+        ((++preversion))
+      fi
+
+      if [[ "$preversion" == "0" ]]; then
+        pre="-$pre_type"
+      else
+        pre="-$pre_type.$preversion"
+      fi
+      ;;
   esac
 
-  # Pre-Release behandeln, wenn nötig
-  if [[ "$release_type" == *"-"* || "$release_type" =~ ^(alpha|beta|pre|rc)$ ]]; then
-    [[ -z "$preversion" ]] && preversion=0
-    if [[ "$version_changed" == true || -z "$pre" || "$pre" != "$pre_type" ]]; then
-      preversion=0
-    else
-      ((preversion++))
-    fi
-    if [[ "$preversion" -eq 0 && "$prev_version" =~ -$pre_type$ ]]; then
-      preversion=1
-    fi
-    if [[ "$preversion" -eq 0 ]]; then
-      pre="-$pre_type"
-    else
-      pre="-$pre_type.$preversion"
-    fi
-  else
-    pre=""
-  fi
-
-  local next_version="${major}.${minor}.${patch}${pre}"
+  next_version="${major}.${minor}.${patch}${pre}"
   echo "create $release_type-release version: $prev_version -> $next_version"
+
   echo "next-version=$next_version" >> "$GITHUB_OUTPUT"
 }
 
-main "$@"
+main "$1" "$2"
