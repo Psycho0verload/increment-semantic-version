@@ -10,7 +10,6 @@
 set -euo pipefail
 
 main() {
-
   prev_version="$1"; release_type="$2"
 
   if [[ -z "$prev_version" ]]; then
@@ -30,6 +29,7 @@ main() {
   fi
 
   major=0; minor=0; patch=0; pre=""; preversion=""
+  version_changed=false
 
   # break down the version number into its components
   regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\\.([0-9]+))?)?$"
@@ -44,17 +44,17 @@ main() {
     exit 1
   fi
 
-   # increment version number based on given release type
+  # increment version number based on given release type
   case "$release_type" in
     major)
-      ((++major)); minor=0; patch=0; pre="";;
+      ((++major)); minor=0; patch=0; pre=""; version_changed=true;;
     feature | minor)
-      ((++minor)); patch=0; pre="";;
+      ((++minor)); patch=0; pre=""; version_changed=true;;
     bug | patch | hotfix)
-      ((++patch)); pre="";;
+      ((++patch)); pre=""; version_changed=true;;
     stable)
       pre=""; preversion="";;
-
+    
     patch-* | minor-* | major-*)
       IFS='-' read -r bump pre_type <<< "$release_type"
       case "$bump" in
@@ -62,8 +62,9 @@ main() {
         minor) ((++minor)); patch=0 ;;
         major) ((++major)); minor=0; patch=0 ;;
       esac
+      version_changed=true
 
-      if [[ -z "$pre" || "$pre" != "$pre_type" ]]; then
+      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
         preversion=0
       else
         ((++preversion))
@@ -75,11 +76,11 @@ main() {
         pre="-$pre_type.$preversion"
       fi
       ;;
-
+    
     alpha | beta | pre | rc)
       pre_type="$release_type"
 
-      if [[ -z "$pre" || "$pre" != "$pre_type" ]]; then
+      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
         preversion=0
       else
         ((++preversion))
