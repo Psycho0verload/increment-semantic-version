@@ -63,10 +63,8 @@ main() {
         major) ((++major)); minor=0; patch=0 ;;
       esac
 
-      if [[ -z "$pre" ]]; then
+      if [[ -z "$pre" || "$pre" != "$pre_type" ]]; then
         preversion=0
-      elif [[ "$pre" != "$pre_type" ]]; then
-        preversion=1
       else
         ((++preversion))
       fi
@@ -77,13 +75,12 @@ main() {
         pre="-$pre_type.$preversion"
       fi
       ;;
-      
+
     alpha | beta | pre | rc)
       pre_type="$release_type"
-      if [[ -z "$pre" ]]; then
+
+      if [[ -z "$pre" || "$pre" != "$pre_type" ]]; then
         preversion=0
-      elif [[ "$pre" != "$pre_type" ]]; then
-        preversion=1
       else
         ((++preversion))
       fi
