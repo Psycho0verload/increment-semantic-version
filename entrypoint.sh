@@ -10,7 +10,7 @@
 set -euo pipefail
 
 main() {
-  prev_version="$1"; release_type="$2"; strict_preversion="${3:-true}"
+  prev_version="$1"; release_type="$2"
 
   if [[ -z "$prev_version" ]]; then
     echo "could not read previous version"; exit 1
@@ -35,7 +35,7 @@ main() {
   version_changed=false
 
   # break down the version number into its components
-  regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\.([0-9]+))?)?$"
+  regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\\.([0-9]+))?)?$"
   if [[ $prev_version =~ $regex ]]; then
     major="${BASH_REMATCH[1]}"
     minor="${BASH_REMATCH[2]}"
@@ -57,7 +57,7 @@ main() {
       ((++patch)); pre=""; version_changed=true;;
     stable)
       pre=""; preversion="";;
-
+    
     patch-* | minor-* | major-*)
       IFS='-' read -r bump pre_type <<< "$release_type"
       case "$bump" in
@@ -73,12 +73,13 @@ main() {
         ((++preversion))
       fi
 
-      pre="-$pre_type"
-      if [[ "$strict_preversion" == "true" || "$preversion" -gt 0 ]]; then
-        pre+=".$preversion"
+      if [[ "$preversion" == "0" ]]; then
+        pre="-$pre_type"
+      else
+        pre="-$pre_type.$preversion"
       fi
       ;;
-
+    
     alpha | beta | pre | rc)
       pre_type="$release_type"
 
@@ -88,9 +89,10 @@ main() {
         ((++preversion))
       fi
 
-      pre="-$pre_type"
-      if [[ "$strict_preversion" == "true" || "$preversion" -gt 0 ]]; then
-        pre+=".$preversion"
+      if [[ "$preversion" == "0" ]]; then
+        pre="-$pre_type"
+      else
+        pre="-$pre_type.$preversion"
       fi
       ;;
   esac
@@ -101,4 +103,4 @@ main() {
   echo "next-version=$next_version" >> "$GITHUB_OUTPUT"
 }
 
-main "$1" "$2" "${3:-true}"
+main "$1" "$2"
