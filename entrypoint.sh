@@ -1,16 +1,8 @@
 #!/bin/bash -l
-
-# active bash options:
-#   - stops the execution of the shell script whenever there are any errors from a command or pipeline (-e)
-#   - option to treat unset variables as an error and exit immediately (-u)
-#   - print each command before executing it (-x)
-#   - sets the exit code of a pipeline to that of the rightmost command
-#     to exit with a non-zero status, or to zero if all commands of the
-#     pipeline exit successfully (-o pipefail)
 set -euo pipefail
 
 main() {
-  prev_version="$1"; release_type="$2"
+  prev_version="$1"; release_type="$2"; strict_preversion="${3:-true}"
 
   if [[ -z "$prev_version" ]]; then
     echo "could not read previous version"; exit 1
@@ -34,8 +26,7 @@ main() {
   major=0; minor=0; patch=0; pre=""; preversion=""
   version_changed=false
 
-  # break down the version number into its components
-  regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\\.([0-9]+))?)?$"
+  regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\.([0-9]+))?)?$"
   if [[ $prev_version =~ $regex ]]; then
     major="${BASH_REMATCH[1]}"
     minor="${BASH_REMATCH[2]}"
@@ -47,7 +38,6 @@ main() {
     exit 1
   fi
 
-  # increment version number based on given release type
   case "$release_type" in
     major)
       ((++major)); minor=0; patch=0; pre=""; version_changed=true;;
@@ -66,12 +56,32 @@ main() {
         major) ((++major)); minor=0; patch=0 ;;
       esac
       version_changed=true
-      pre="-$pre_type.0"
+
+      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
+        preversion=0
+      else
+        ((++preversion))
+      fi
+
+      pre="-$pre_type"
+      if [[ "$strict_preversion" == "true" || "$preversion" -gt 0 ]]; then
+        pre+=".$preversion"
+      fi
       ;;
 
     alpha | beta | pre | rc)
       pre_type="$release_type"
-      pre="-$pre_type.0"
+
+      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
+        preversion=0
+      else
+        ((++preversion))
+      fi
+
+      pre="-$pre_type"
+      if [[ "$strict_preversion" == "true" || "$preversion" -gt 0 ]]; then
+        pre+=".$preversion"
+      fi
       ;;
   esac
 
@@ -81,4 +91,4 @@ main() {
   echo "next-version=$next_version" >> "$GITHUB_OUTPUT"
 }
 
-main "$1" "$2"
+main "$1" "$2" "${3:-true}"
