@@ -57,7 +57,7 @@ main() {
       ((++patch)); pre=""; version_changed=true;;
     stable)
       pre=""; preversion="";;
-    
+
     patch-* | minor-* | major-*)
       IFS='-' read -r bump pre_type <<< "$release_type"
       case "$bump" in
@@ -66,34 +66,12 @@ main() {
         major) ((++major)); minor=0; patch=0 ;;
       esac
       version_changed=true
-
-      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
-        preversion=0
-      else
-        ((++preversion))
-      fi
-
-      if [[ "$preversion" == "0" ]]; then
-        pre="-$pre_type"
-      else
-        pre="-$pre_type.$preversion"
-      fi
+      pre="-$pre_type.0"
       ;;
-    
+
     alpha | beta | pre | rc)
       pre_type="$release_type"
-
-      if [[ "$version_changed" == "true" || -z "$pre" || "$pre" != "$pre_type" ]]; then
-        preversion=0
-      else
-        ((++preversion))
-      fi
-
-      if [[ "$preversion" == "0" ]]; then
-        pre="-$pre_type"
-      else
-        pre="-$pre_type.$preversion"
-      fi
+      pre="-$pre_type.0"
       ;;
   esac
 
