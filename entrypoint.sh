@@ -58,10 +58,14 @@ main() {
 
   # Pre-Release behandeln, wenn nötig
   if [[ "$release_type" == *"-"* || "$release_type" =~ ^(alpha|beta|pre|rc)$ ]]; then
+    [[ -z "$preversion" ]] && preversion=0
     if [[ "$version_changed" == true || -z "$pre" || "$pre" != "$pre_type" ]]; then
       preversion=0
     else
       ((preversion++))
+    fi
+    if [[ "$preversion" -eq 0 && "$prev_version" =~ -$pre_type$ ]]; then
+      preversion=1
     fi
     if [[ "$preversion" -eq 0 ]]; then
       pre="-$pre_type"
