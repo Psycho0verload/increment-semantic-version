@@ -17,13 +17,19 @@ main() {
     echo "could not read previous version"; exit 1
   fi
 
-  possible_release_types=(major feature minor bug patch hotfix alpha beta pre rc stable patch-alpha patch-beta patch-pre patch-rc)
+  possible_release_types=(
+    major feature minor bug patch hotfix stable
+    alpha beta pre rc
+    patch-alpha patch-beta patch-pre patch-rc
+    minor-alpha minor-beta minor-pre minor-rc
+    major-alpha major-beta major-pre major-rc
+  )
 
   if [[ ! " ${possible_release_types[*]} " =~ " ${release_type} " ]]; then
     echo "valid argument: [ ${possible_release_types[*]} ]"; exit 1
   fi
 
-  major=0; minor=0; patch=0; pre=""; preversion=0
+  major=0; minor=0; patch=0; pre=""; preversion=""
 
   # break down the version number into its components
   regex="^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-z]+)(\\.([0-9]+))?)?$"
@@ -38,25 +44,42 @@ main() {
     exit 1
   fi
 
-  # increment version number based on given release type
+   # increment version number based on given release type
   case "$release_type" in
-  "major")
-    ((++major)); minor=0; patch=0; pre="";;
-  "feature"|"minor")
-    ((++minor)); patch=0; pre="";;
-  "bug"|"patch"|"hotfix")
-    ((++patch)); pre="";;
+    major)
+      ((++major)); minor=0; patch=0; pre="";;
+    feature | minor)
+      ((++minor)); patch=0; pre="";;
+    bug | patch | hotfix)
+      ((++patch)); pre="";;
     stable)
       pre=""; preversion="";;
-    alpha | beta | pre | rc | patch-alpha | patch-beta | patch-pre | patch-rc)
-      # Determine pre-release type and patch bump
-      if [[ "$release_type" == patch-* ]]; then
-        pre_type="${release_type#patch-}"
-        ((++patch))
+
+    patch-* | minor-* | major-*)
+      IFS='-' read -r bump pre_type <<< "$release_type"
+      case "$bump" in
+        patch) ((++patch)) ;;
+        minor) ((++minor)); patch=0 ;;
+        major) ((++major)); minor=0; patch=0 ;;
+      esac
+
+      if [[ -z "$pre" ]]; then
+        preversion=0
+      elif [[ "$pre" != "$pre_type" ]]; then
+        preversion=1
       else
-        pre_type="$release_type"
+        ((++preversion))
       fi
 
+      if [[ "$preversion" == "0" ]]; then
+        pre="-$pre_type"
+      else
+        pre="-$pre_type.$preversion"
+      fi
+      ;;
+      
+    alpha | beta | pre | rc)
+      pre_type="$release_type"
       if [[ -z "$pre" ]]; then
         preversion=0
       elif [[ "$pre" != "$pre_type" ]]; then
