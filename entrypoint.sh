@@ -63,7 +63,11 @@ main() {
     else
       ((preversion++))
     fi
-    pre="-$pre_type${preversion:+.$preversion}"
+    if [[ "$preversion" -eq 0 ]]; then
+      pre="-$pre_type"
+    else
+      pre="-$pre_type.$preversion"
+    fi
   else
     pre=""
   fi
